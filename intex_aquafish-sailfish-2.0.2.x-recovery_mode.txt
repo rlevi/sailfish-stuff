@@ -1,0 +1,137 @@
+<<< intex is too much fun:
+Generic notes from
+	https://jolla.zendesk.com/hc/en-us/articles/204709607
+does not put you in telnet/rndis-able mode on aquafish. Just simply shows generic usb device
+
+[1201785.163255] usb 2-2: new high-speed USB device number 4 using ehci-pci
+[1201785.293705] usb 2-2: New USB device found, idVendor=18d1, idProduct=d00d
+[1201785.293711] usb 2-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[1201785.293716] usb 2-2: Product: Android
+[1201785.293720] usb 2-2: Manufacturer: Google
+[1201785.293723] usb 2-2: SerialNumber: 2c53dcf6
+
+and no new network interface despite linux kernel modules
+
+le ~ # lsmod  | grep rndis
+rndis_wlan             21879  0
+rndis_host              5210  1 rndis_wlan
+cdc_ether               4358  1 rndis_host
+usbnet                 18415  3 rndis_host,rndis_wlan,cdc_ether
+
+loaded.
+
+To actually boot into recovery mode whole other combo used:
+	http://www.hardreset.info/devices/intex/intex-aqua-fish/
+
+1. The cell phone must be switched off by using the Power key.
+2. In the next step press and hold together the Volume Up and Power key for a few seconds. (no battery removal here;)
+... <-- dunno, intex aquafish just shows recovery message
+> RECOVERY: Connect USB cable and open telnet to address 10.42.66.66
+prompt on screen ;)
+
+after that "ifconfig -a" shows new net device
+
+le ~ # ifconfig -a | grep enp
+enp0s29f7u1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+
+acquire lease 
+le ~ # dhcpcd enp0s29f7u1
+enp0s29f7u1: waiting for carrier
+enp0s29f7u1: carrier acquired
+enp0s29f7u1: adding address fe80::8b6b:22dc:6c06:12a5
+DUID 00:01:00:01:1d:cd:01:4d:00:21:6a:51:d8:2c
+enp0s29f7u1: IAID 5c:2e:1d:54
+enp0s29f7u1: rebinding lease of 10.42.66.67
+enp0s29f7u1: soliciting an IPv6 router
+enp0s29f7u1: NAK: from 10.42.66.66
+enp0s29f7u1: soliciting a DHCP lease
+enp0s29f7u1: offered 10.42.66.67 from 10.42.66.66
+enp0s29f7u1: probing address 10.42.66.67/29
+enp0s29f7u1: leased 10.42.66.67 for 864000 seconds
+enp0s29f7u1: adding route to 10.42.66.64/29
+forked to background, child pid 32478
+
+Let the fun begin. 
+
+le ~ % telnet 10.42.66.66
+
+-----------------------------
+     Jolla Recovery v2.0
+-----------------------------
+Welcome to the recovery tool!
+The available options are:
+1) Reset device to factory state
+2) Reboot device
+3) Shell
+4) Perform file system check
+5) Run sshd
+6) Exit
+Type the number of the desired action and press [Enter]: 
+3
+
+If you continue, this may void your warranty. Are you really SURE? [y/N] y
+  2 logical volume(s) in volume group "sailfish" now active
+[OK] No lockcode has been set. Proceeding...
+/ # 
+/ # fdisk -l /dev/mmcblk0
+
+Disk /dev/mmcblk0: 15.6 GB, 15634268160 bytes
+256 heads, 63 sectors/track, 1893 cylinders
+Units = cylinders of 16128 * 512 = 8257536 bytes
+
+        Device Boot      Start         End      Blocks  Id System
+/dev/mmcblk0p1               1      266306  2147483647+ ee EFI GPT
+/ # ls -1 /dev/mmcblk*
+/dev/mmcblk0
+/dev/mmcblk0p1
+/dev/mmcblk0p10
+/dev/mmcblk0p11
+/dev/mmcblk0p12
+/dev/mmcblk0p13
+/dev/mmcblk0p14
+/dev/mmcblk0p15
+/dev/mmcblk0p16
+/dev/mmcblk0p17
+/dev/mmcblk0p18
+/dev/mmcblk0p19
+/dev/mmcblk0p2
+/dev/mmcblk0p20
+/dev/mmcblk0p21
+/dev/mmcblk0p22
+/dev/mmcblk0p23
+/dev/mmcblk0p24
+/dev/mmcblk0p25
+/dev/mmcblk0p26
+/dev/mmcblk0p27
+/dev/mmcblk0p28
+/dev/mmcblk0p3
+/dev/mmcblk0p4
+/dev/mmcblk0p5
+/dev/mmcblk0p6
+/dev/mmcblk0p7
+/dev/mmcblk0p8
+/dev/mmcblk0p9
+/dev/mmcblk0rpmb
+/dev/mmcblk1
+/dev/mmcblk1p1
+/ # mkdir -p /mysd
+/ # mount /dev/mmcblk1p1 /mysd
+/ # mkdir -p /mysd/backup/intex-aquafish/20161026
+/ # cd /mysd/backup/intex-aquafish/20161026
+
+/mysd/backup/intex-aquafish/20161026 # for partition in $(ls /dev/mmcblk0?*|grep -v p28) ; do echo backing-up $partition; dd if=$partition of=./$(basename $partition); done
+...
+/mysd/backup/intex-aquafish/20161026 # dd if=/dev/mmcblk0p28 | split -b 1073741824 - mmcblk0p28. # just simply 1G split not to stump on fat-formatted sd card limitations
+27125727+0 records in
+27125727+0 records out
+13888372224 bytes (12.9GB) copied, 967.269238 seconds, 13.7MB/s
+
+/mysd/backup/intex-aquafish/20161026 # ps l > ps.txt
+
+/ # cd /
+/ # cp -f /usr/bin/recovery-menu /mysd/backup/intex-aquafish/20161026
+
+/ # sync
+/ # umount /mysd
+
+Got safely backed up, time to have unsafe fun with sailfish/mer
